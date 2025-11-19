@@ -3,23 +3,34 @@ from flask_cors import CORS
 import numpy as np
 import base64, io
 from PIL import Image
-from tensorflow.keras.models import load_model
 import mediapipe as mp
+from tensorflow.keras.models import load_model
 
 app = Flask(__name__)
 CORS(app)
 
-MODEL = load_model("backend/model/mp_hand_gesture.h5")  # adjust if needed
+# Load model
+MODEL_PATH = "backend/model/mp_hand_gesture.h5"
+GESTURE_NAMES = "backend/gesture.names"
+
+model = load_model(MODEL_PATH)
+
+# Load class names
+with open(GESTURE_NAMES, "r") as f:
+    classNames = [line.strip() for line in f.readlines() if line.strip()]
 
 mp_hands = mp.solutions.hands
 
 def normalize_landmarks(landmarks):
-    arr = np.array(landmarks, dtype=np.float32)
-    x_min, y_min = arr[:,0].min(), arr[:,1].min()
-    x_max, y_max = arr[:,0].max(), arr[:,1].max()
-    w = x_max - x_min if x_max > x_min else 1
-    h = y_max - y_min if y_max > y_min else 1
-    return ((arr - [x_min, y_min]) / [w, h]).flatten().reshape(1, -1)
+    landmarks = np.array(landmarks)
+    x_min, y_min = np.min(landmarks[:, 0]), np.min(landmarks[:, 1])
+    x_max, y_max = np.max(landmarks[:, 0]), np.max(landmarks[:, 1])
+
+    width = x_max - x_min if x_max != x_min else 1
+    height = y_max - y_min if y_max != y_min else 1
+
+    normalized = (landmarks - [x_min, y_min]) / [width, height]
+    return normalized.flatten().reshape(1, -1)
 
 @app.route("/")
 def home():
@@ -29,24 +40,29 @@ def home():
 def predict_image():
     data = request.get_json()
     if "image" not in data:
-        return {"error": "No image"}, 400
+        return {"error": "No image provided"}, 400
 
     b64 = data["image"].split(",")[-1]
     img = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
     img_np = np.array(img)
 
     with mp_hands.Hands(static_image_mode=True, max_num_hands=1) as hands:
-        results = hands.process(img_np)
-        if not results.multi_hand_landmarks:
-            return {"error": "No hand detected"}, 400
-        
-        lm = results.multi_hand_landmarks[0]
-        landmarks = [[lm.x, lm.y] for lm in lm.landmark]
+        result = hands.process(img_np)
 
+        if not result.multi_hand_landmarks:
+            return {"error": "No hand detected"}, 400
+
+        hand = result.multi_hand_landmarks[0]
+        landmarks = [[lm.x, lm.y] for lm in hand.landmark]
+
+    # Normalize & predict
     x = normalize_landmarks(landmarks)
-    preds = MODEL.predict(x)[0]
-    label = int(np.argmax(preds))
-    conf = float(np.max(preds))
+    prediction = model.predict(x, verbose=0)[0]
+
+    classID = int(np.argmax(prediction))
+    conf = float(np.max(prediction))
+    label = classNames[classID]
+
     return {"label": label, "confidence": conf}
 
 if __name__ == "__main__":
