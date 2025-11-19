@@ -1,0 +1,53 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import numpy as np
+import base64, io
+from PIL import Image
+from tensorflow.keras.models import load_model
+import mediapipe as mp
+
+app = Flask(__name__)
+CORS(app)
+
+MODEL = load_model("backend/model/mp_hand_gesture.h5")  # adjust if needed
+
+mp_hands = mp.solutions.hands
+
+def normalize_landmarks(landmarks):
+    arr = np.array(landmarks, dtype=np.float32)
+    x_min, y_min = arr[:,0].min(), arr[:,1].min()
+    x_max, y_max = arr[:,0].max(), arr[:,1].max()
+    w = x_max - x_min if x_max > x_min else 1
+    h = y_max - y_min if y_max > y_min else 1
+    return ((arr - [x_min, y_min]) / [w, h]).flatten().reshape(1, -1)
+
+@app.route("/")
+def home():
+    return {"status": "ok", "model_loaded": True}
+
+@app.route("/predict_image", methods=["POST"])
+def predict_image():
+    data = request.get_json()
+    if "image" not in data:
+        return {"error": "No image"}, 400
+
+    b64 = data["image"].split(",")[-1]
+    img = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
+    img_np = np.array(img)
+
+    with mp_hands.Hands(static_image_mode=True, max_num_hands=1) as hands:
+        results = hands.process(img_np)
+        if not results.multi_hand_landmarks:
+            return {"error": "No hand detected"}, 400
+        
+        lm = results.multi_hand_landmarks[0]
+        landmarks = [[lm.x, lm.y] for lm in lm.landmark]
+
+    x = normalize_landmarks(landmarks)
+    preds = MODEL.predict(x)[0]
+    label = int(np.argmax(preds))
+    conf = float(np.max(preds))
+    return {"label": label, "confidence": conf}
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
