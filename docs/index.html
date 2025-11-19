@@ -1,14 +1,88 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello world project</title>
-  </head>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hand Gesture Recognition</title>
 
-  <body>
-    <div id="root"></div>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    video, canvas {
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
 
-    <script type="module" src="/client/App.tsx"></script>
-  </body>
+<body>
+
+  <h1>Hand Gesture Recognition</h1>
+  <p>Allow camera access → click “Predict Gesture”</p>
+
+  <video id="video" width="320" height="240" autoplay></video><br>
+  <button id="predictBtn">Predict Gesture</button>
+
+  <canvas id="canvas" width="320" height="240" style="display:none"></canvas>
+
+  <div id="result"></div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const resultDiv = document.getElementById("result");
+
+    // Start webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => resultDiv.innerHTML = "Camera error: " + err);
+
+    document.getElementById("predictBtn").onclick = async () => {
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL("image/png");
+
+      // ⚠️ REPLACE THIS WITH YOUR BACKEND URL
+      const API_URL = "https://YOUR-BACKEND-URL.onrender.com/predict_image";
+
+      resultDiv.innerHTML = "Predicting...";
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: dataUrl })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          resultDiv.innerHTML = "Error: " + data.error;
+        } else {
+          resultDiv.innerHTML =
+            "Prediction: <b>" + data.label + "</b><br>Confidence: " +
+            (data.confidence * 100).toFixed(2) + "%";
+        }
+      } catch (err) {
+        resultDiv.innerHTML = "Request failed: " + err;
+      }
+    };
+  </script>
+
+</body>
 </html>
