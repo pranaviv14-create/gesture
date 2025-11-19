@@ -1,15 +1,8 @@
 flask==2.2.5
 flask-cors==3.0.10
+# pillow intentionally removed because we preinstall it in build command
 numpy==1.25.3
-
-# CPU-only TensorFlow (more reliable on Render)
 tensorflow-cpu==2.12.0
-
-# mediapipe (optional / may still be tricky)
 mediapipe==0.10.2
-
-# Use OpenCV headless instead of pillow (no system deps)
-opencv-python-headless==4.8.0.76
-
 gunicorn==20.1.0
 requests==2.31.0
