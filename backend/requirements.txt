@@ -1,0 +1,8 @@
+flask
+flask-cors
+pillow
+numpy
+tensorflow==2.12.0
+mediapipe
+gunicorn
+requests
