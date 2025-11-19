@@ -1,0 +1,11 @@
+# IDE
+.idea/
+*.iml
+
+# Model / data
+*.pickle
+mp_hand_gesture/
+mp_hand_gesture/**
+
+# images (if you want)
+# signs/
